@@ -1,0 +1,1196 @@
+{
+  "nbformat": 4,
+  "nbformat_minor": 0,
+  "metadata": {
+    "colab": {
+      "provenance": [],
+      "gpuType": "T4"
+    },
+    "kernelspec": {
+      "name": "python3",
+      "display_name": "Python 3"
+    },
+    "language_info": {
+      "name": "python"
+    },
+    "accelerator": "GPU",
+  },
+  "cells": [
+    {
+      "cell_type": "code",
+      "execution_count": 2,
+      "metadata": {
+        "id": "brs5vCWeA-dY"
+      },
+      "outputs": [],
+      "source": [
+        "# !pip install datasets"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "import pandas as pd\n",
+        "from datasets import load_dataset, Dataset\n",
+        "from transformers import T5Tokenizer, T5ForConditionalGeneration, Trainer, TrainingArguments, TrainerCallback\n",
+        "import os\n",
+        "from google.colab import drive\n",
+        "\n",
+        "drive.mount('/content/drive')"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "-WA9ZxtPB4PM",
+        "outputId": "8324800e-df1b-48fa-ce4f-450efcebd67e"
+      },
+      "execution_count": 8,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Drive already mounted at /content/drive; to attempt to forcibly remount, call drive.mount(\"/content/drive\", force_remount=True).\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "dataset = load_dataset(\"paws\", \"labeled_final\")\n",
+        "\n",
+        "\n",
+        "def preprocess_paws(dataset, label=1):\n",
+        "  df = pd.DataFrame(dataset)\n",
+        "  df = df[df['label']==label]\n",
+        "\n",
+        "  df['input_text'] = \"paraphrase :\" + df['sentence1']\n",
+        "  df['target_text'] = df['sentence2']\n",
+        "\n",
+        "  return df[['input_text','target_text']]\n",
+        "\n",
+        "train_df = preprocess_paws(dataset['train']).sample(3000, random_state=42)\n",
+        "test_df = preprocess_paws(dataset['test']).sample(300, random_state=42)\n",
+        "validation_df = preprocess_paws(dataset['validation']).sample(300, random_state=42)"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 365,
+          "referenced_widgets": [
+            "cdbc7974db6c4810a87beb26c87ef2b9",
+            "31d84de2453f473a8e8e019b9a96055a",
+            "18e13d04bec4462184e98705deb8ea95",
+            "bf2980e252f74e93a2950e0276df4676",
+            "9529e9fceda144018bd48cfc30620849",
+            "5c0d2a6bcde04c2c8aaabf118d1cdf7c",
+            "4f7dc99c937d46289587cb4344ce9840",
+            "116a99c86af145ec877c720568f96213",
+            "777e823d050d4d94a59b65cc38702215",
+            "3f3a4793dde24482abc12fe351bc0499",
+            "01ca67735cab43409bc803bfa0f477de",
+            "d8beb0e432d74d1b9862da4b233830a4",
+            "e3326145d4124f9994d24001383ed757",
+            "faee7a3fd004465dac924289d9af8362",
+            "7b2c59d8418546a79b6c28cd10f47237",
+            "78ea63db2faa4d008c6361ddb065a5c7",
+            "797d3892a3c6480094b6ed8a9cd3ee9b",
+            "9fbf51270bc8454496f93f75bbf19113",
+            "e2273142eb9c460bb55871aa94f284ac",
+            "cd1b1bb75c9340eface374598504316f",
+            "5dfc1043534849fda9987db384184879",
+            "57aab9c8270b4edb8564fd2110077780",
+            "643c664f9df8495aa7f1844da2c007ff",
+            "3c08a7d4d1a94655b6f574f27358cae7",
+            "ab89a9bff5454ad393839ec8820fbee0",
+            "eb32759425944b5da903174adff3fc61",
+            "3e8d72e668a24852a8b0a1978535059d",
+            "05c48540f83344c28ee0310c0fdc08da",
+            "704fcb0fc0294b1a896dba9ded370319",
+            "3297afc9e5004dfca9906e1d63d07775",
+            "e2dabc20b3bf460caa90399031fda3c7",
+            "023bef8db7754b90a185066ae56af5aa",
+            "b7edeb7fc4a0418f9fe898bf2fadb776",
+            "e6cc5bb910cf49e7b4cba9b077ec284a",
+            "f169ca70ad494ef883f9f63788da6e88",
+            "3b34f7cd866841feb66c34b39c6847e4",
+            "eee5106665b74507859718283d40cb6a",
+            "439d34609c3c41a3a098727cb3a05d26",
+            "1ca7676633ad4b4eb1a390dccbe5db77",
+            "352c5bfbfe454ecaaacde1c64a44cba2",
+            "20266cd519cc46de946e5853eb3ae410",
+            "1aea86acdfb0475d9ed1ef4f1e416563",
+            "1959ce2fd7894470b87bb71af1da4dd5",
+            "276bc29d5f664b2ca2537a5c6a23426e",
+            "9865c30864634c3da3fa293b8385577a",
+            "002d99c06daa4024b6f9303efeb85f4a",
+            "1d940c0379b54c6dadafad1d8f6490f2",
+            "72bb9a5c0d6b4477953ab651aa7168e1",
+            "70c07663c1f2412cbefb28548e98cb21",
+            "abf0abb8a3fc477493fe0b5b31fe1208",
+            "0f10191d65ad4e1d94b945ef8f6fd354",
+            "01cd3e43ddbc4ca78f8dc43fe7b88b7b",
+            "c0f4cc39c7304742a8f1705ebf97e2d8",
+            "efb174dd1c214c8da880154ec77653cc",
+            "80e4990ae4a24f939ec8ab630cf609f6",
+            "afad6cfcdbe0470c848735553d214e45",
+            "11f3f5e4f16844b09a6318026da10c5e",
+            "16b4293eff594e6385bd3ec87df9fb8c",
+            "6a81746178b348a1a3d54d8adfda9280",
+            "7ed25552ee11480981360da6257d02d9",
+            "a32057edc3ea4c51a0f4d3722b89b680",
+            "a762bcd19301412583117b3659b27919",
+            "8759167a3c034696929e52e9d5d98b27",
+            "16857ffb60304016abb9e1eeb94befde",
+            "f6a0a69a15eb4572aeedac8c6955548f",
+            "b322bfe40419470e8169918d2fdb8e39",
+            "f3fc5670b8724fba8a53e02d8e8c4365",
+            "34cd97b39bff4a64a3a644590f4c4fef",
+            "f617735fb952446086a7c07bfca8c7ee",
+            "9c245e83bac54c64a85cfd6a425655d3",
+            "e3a1b17f7ccc454f8bb9285a9b845429",
+            "1c7cb41aa19844878900c022e68f0f3e",
+            "75a02cb2ca104017ad5003bea4a21251",
+            "07eef63412c94947b2c6d0114283a58f",
+            "7580b89493ad40dca669792dcda744c6",
+            "1ae474da486340da90ca4b721ea644d0",
+            "1e72f29548ac4e6a993307c0943c0a30"
+          ]
+        },
+        "id": "w9isW5hCCAoo",
+        "outputId": "7cb223c4-c32a-4ec9-f9e6-f51021ef30d7"
+      },
+      "execution_count": 9,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stderr",
+          "text": [
+            "/usr/local/lib/python3.12/dist-packages/huggingface_hub/utils/_auth.py:94: UserWarning: \n",
+            "The secret `HF_TOKEN` does not exist in your Colab secrets.\n",
+            "To authenticate with the Hugging Face Hub, create a token in your settings tab (https://huggingface.co/settings/tokens), set it as secret in your Google Colab and restart your session.\n",
+            "You will be able to reuse this secret in all of your notebooks.\n",
+            "Please note that authentication is recommended but still optional to access public models or datasets.\n",
+            "  warnings.warn(\n"
+          ]
+        },
+        {
+          "output_type": "display_data",
+          "data": {
+            "text/plain": [
+              "README.md: 0.00B [00:00, ?B/s]"
+            ],
+            "application/vnd.jupyter.widget-view+json": {
+              "version_major": 2,
+              "version_minor": 0,
+              "model_id": "cdbc7974db6c4810a87beb26c87ef2b9"
+            }
+          },
+          "metadata": {}
+        },
+        {
+          "output_type": "display_data",
+          "data": {
+            "text/plain": [
+              "labeled_final/train-00000-of-00001.parqu(…):   0%|          | 0.00/8.43M [00:00<?, ?B/s]"
+            ],
+            "application/vnd.jupyter.widget-view+json": {
+              "version_major": 2,
+              "version_minor": 0,
+              "model_id": "d8beb0e432d74d1b9862da4b233830a4"
+            }
+          },
+          "metadata": {}
+        },
+        {
+          "output_type": "display_data",
+          "data": {
+            "text/plain": [
+              "labeled_final/test-00000-of-00001.parque(…):   0%|          | 0.00/1.24M [00:00<?, ?B/s]"
+            ],
+            "application/vnd.jupyter.widget-view+json": {
+              "version_major": 2,
+              "version_minor": 0,
+              "model_id": "643c664f9df8495aa7f1844da2c007ff"
+            }
+          },
+          "metadata": {}
+        },
+        {
+          "output_type": "display_data",
+          "data": {
+            "text/plain": [
+              "labeled_final/validation-00000-of-00001.(…):   0%|          | 0.00/1.23M [00:00<?, ?B/s]"
+            ],
+            "application/vnd.jupyter.widget-view+json": {
+              "version_major": 2,
+              "version_minor": 0,
+              "model_id": "e6cc5bb910cf49e7b4cba9b077ec284a"
+            }
+          },
+          "metadata": {}
+        },
+        {
+          "output_type": "display_data",
+          "data": {
+            "text/plain": [
+              "Generating train split:   0%|          | 0/49401 [00:00<?, ? examples/s]"
+            ],
+            "application/vnd.jupyter.widget-view+json": {
+              "version_major": 2,
+              "version_minor": 0,
+              "model_id": "9865c30864634c3da3fa293b8385577a"
+            }
+          },
+          "metadata": {}
+        },
+        {
+          "output_type": "display_data",
+          "data": {
+            "text/plain": [
+              "Generating test split:   0%|          | 0/8000 [00:00<?, ? examples/s]"
+            ],
+            "application/vnd.jupyter.widget-view+json": {
+              "version_major": 2,
+              "version_minor": 0,
+              "model_id": "afad6cfcdbe0470c848735553d214e45"
+            }
+          },
+          "metadata": {}
+        },
+        {
+          "output_type": "display_data",
+          "data": {
+            "text/plain": [
+              "Generating validation split:   0%|          | 0/8000 [00:00<?, ? examples/s]"
+            ],
+            "application/vnd.jupyter.widget-view+json": {
+              "version_major": 2,
+              "version_minor": 0,
+              "model_id": "f3fc5670b8724fba8a53e02d8e8c4365"
+            }
+          },
+          "metadata": {}
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "train_dataset = Dataset.from_pandas(train_df)\n",
+        "validation_dataset = Dataset.from_pandas(validation_df)\n",
+        "test_dataset = Dataset.from_pandas(test_df)\n",
+        "\n",
+        "# Initialize tokenizer and model\n",
+        "model_name = \"t5-base\"\n",
+        "tokenizer = T5Tokenizer.from_pretrained(model_name)\n",
+        "model = T5ForConditionalGeneration.from_pretrained(model_name)\n",
+        "\n",
+        "# Tokenization function\n",
+        "def tokenize_function(examples):\n",
+        "    max_length = 512  # T5-base typically uses 512 as default\n",
+        "\n",
+        "    inputs = tokenizer(examples['input_text'], max_length=max_length, truncation=True, padding=\"max_length\")\n",
+        "    targets = tokenizer(examples['target_text'], max_length=max_length, truncation=True, padding=\"max_length\")\n",
+        "    inputs['labels'] = targets['input_ids']\n",
+        "    return inputs\n",
+        "\n",
+        "# Tokenize datasets\n",
+        "train_dataset = train_dataset.map(tokenize_function, batched=True)\n",
+        "validation_dataset = validation_dataset.map(tokenize_function, batched=True)\n",
+        "test_dataset = test_dataset.map(tokenize_function, batched=True)\n",
+        "\n",
+        "# Set format for PyTorch\n",
+        "train_dataset.set_format(type='torch', columns=['input_ids', 'attention_mask', 'labels'])\n",
+        "validation_dataset.set_format(type='torch', columns=['input_ids', 'attention_mask', 'labels'])\n",
+        "test_dataset.set_format(type='torch', columns=['input_ids', 'attention_mask', 'labels'])\n",
+        "\n",
+        "print(f\"✓ Train dataset tokenized: {len(train_dataset)} examples\")\n",
+        "print(f\"✓ Validation dataset tokenized: {len(validation_dataset)} examples\")\n",
+        "print(f\"✓ Test dataset tokenized: {len(test_dataset)} examples\")"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 392,
+          "referenced_widgets": [
+            "d201973d25bb4535aadbce51a78d9b2c",
+            "d8b209de089c4d05872d550ede6e31e5",
+            "e7d696f43ff944c5823889174e3126cf",
+            "7f69c6e3db5348629e293ac07e2e06de",
+            "83a58b1817884d9ea9b0643069b5567d",
+            "5b776b7a97ad4af69e9a8dff74effe31",
+            "d1a8659e60c545bb97cb9c569206fdf1",
+            "682e8ff65532439b9aae649235dd5601",
+            "0c5bf3508f5c445e9bcbe85a85950228",
+            "acfb857bf2be4b3ea96de3ebecca2044",
+            "8d9bccabaa644f75b5fa068f3bad12c1",
+            "65a275f6b46945b3b46aeffa38abb4a6",
+            "6567f1ad5eb841a785e689c7789c0f57",
+            "c0724ac3b0984cf9bb0fecce67766340",
+            "645b2e766861407a80b5d0ad7e47d390",
+            "67cf956953f8428ea2d7505bcad02136",
+            "faf56931eca143b1be9c61ac0c96a293",
+            "d573a25b45544202a8c7bcb572caa3f2",
+            "af2a21b9834f48378cb65aa47361a309",
+            "d3f0bce37eb74324bc115e3b082ebd1a",
+            "1a3eda6d89a74b69b768054744602013",
+            "a1fe10f5ca504b3faf974ccf5d1af63c",
+            "a7e862f4c9ff445bb8eda92c22944834",
+            "26c82c2df047423faab41ddbe60ee21c",
+            "8a7161326bd343a28265dc8d41aaea9c",
+            "315a4dd1c29c40f18f4e89b9f34d40bd",
+            "233b4516c54d4259bb6940b60e32f0dc",
+            "354a0fde829643f8997358ce60afc10e",
+            "c5129c84a6764600ab4d06ee0744e1f5",
+            "9bc2d10c515a4054b59a245d8123b221",
+            "e9ac0b940efc4dba95463469512a12be",
+            "f15cac538e854f499b6be9575bf72fba",
+            "844b3070085f434aa2ad06c15bf8ea54",
+            "3b23d8b1036e4e86a5044f7219857f3e",
+            "b90bcac5b2e94dfe90ff292ec56d1e65",
+            "9a8ecfcb96d24cea8b1e3e01d6c140b7",
+            "84ddde864cd7463abb30ed3b78e77c99",
+            "5303d74041b24aaaa214eebc249e4fb1",
+            "083b956dbf3f4836a53944b780c6e85f",
+            "49e6a0dc44b44f1b8e68554cea4daf47",
+            "cbbe21f65cf54dedadeaaa93c2178bef",
+            "a4acf9892a334ce7a50b2c467366c5bc",
+            "50eb77ddd64e48efb471a7ff6d0cd966",
+            "6062ba648e94434c92be9e9f418f2ca2",
+            "4612d5dc44654fec9cc766ec8f75d3b4",
+            "234b519080ad422ea86180c8b1e15fcb",
+            "3282756fcbb447dca30a37e4365e8398",
+            "6b7411bd9fea4778811d0884f2b6cdfa",
+            "ac95219896d343789b54cd311d8e7903",
+            "0c759baced40445ea3a243354d109de2",
+            "555cf0dd1cc9404b83833d503ab78083",
+            "8e3a0c613a73496f88efc6310171cd41",
+            "65be037ac7654db6b458782b0de67483",
+            "6f1a8e0715db4c54ba3c7d1be95fe324",
+            "ba93f2150f5841b1a77b22c02bd4e891",
+            "7f318487c0f64d2084f5f1fc83274133",
+            "034618f77431402a95bf71f70a6a784a",
+            "ae27647db4f54929a7f8417a63442854",
+            "da88e6bdd8664051b5db0d915b002e17",
+            "460126bc861d4fbc813fe3a65a6c77ca",
+            "67ae5b25b5a9457c9db8a5fd434b3278",
+            "02ff8f7179d14926937a51edc274b169",
+            "850b87eb80e84ceeb26b30f3437ee165",
+            "551134c1045946a8a31f14bc58e59ac8",
+            "d40ea00fbafd4730bd65fd645a221ed2",
+            "8898cc0bd8ce4464b27ffb73bfd16480",
+            "c26a4a970e76454d8bdaa158882a69f2",
+            "bc2fd9088bdb47958aaccce8b9a71e13",
+            "17e11e2b89604e86aacc02f567d40429",
+            "01f39b2b49fb4471879a9223fb9f1982",
+            "f236b2fc834d4890bf3610cc90ea58c2",
+            "5fdd37b011754e9d8084c5176bc110e5",
+            "15f66ab7911d411bac9824b4975e2d4e",
+            "306c586346e04886ac7c9466c75601d1",
+            "974fa010ab2748ee8729215bc999b5fa",
+            "597b872c738c4b268fc9654fff584bfd",
+            "966925efb91341619f22055da86d5c3f",
+            "5049dc35574e406aa790dfa7cbb9689c",
+            "c8cede8d6a3d49dd8851914e50631316",
+            "2d7df309705045f89526bd49c355e464",
+            "950638d7fc664a2f9f2d7200c6d93652",
+            "5c657a40adcd4672848616b9db4fc5ea",
+            "b76088e5d42047bdb72532975b344934",
+            "b512c48e8d014088a6fe2998691400f2",
+            "2f64e9ef857e4a389e7a4923910ed0ee",
+            "9eeea1c666404bfd8825ee3f9e1028d0",
+            "e207b18b10534ba292855c87f33eab6f",
+            "cf6a94dcb8904dc5ab1f7f5b3a3dc254",
+            "a8f015140d79487c9b684515c074a878",
+            "46f4f15c6596494bb39dc040b4542cdc",
+            "447166c4c97e41a6b6238f4b1d47e69f",
+            "6051689f3346453aa6481d045794af27",
+            "5cb0925c41774dc98e98aefb65dedda6",
+            "4bc5860be358452ebc212bab1fa8c485",
+            "6de8dc24a1b24de2b3cd99c708720c09",
+            "aee308483a40471997111a07577b6b85",
+            "28526f8683f742c5b287d2fcc30c1aef",
+            "59177c0e97df4fdaa416241bde61107d",
+            "8cae6411e3cb4968972c1d13ca8bbeb0"
+          ]
+        },
+        "id": "Qo60hVhfCItP",
+        "outputId": "487f20db-cbe9-44be-8d0e-9477af2f649b"
+      },
+      "execution_count": 10,
+      "outputs": [
+        {
+          "output_type": "display_data",
+          "data": {
+            "text/plain": [
+              "spiece.model:   0%|          | 0.00/792k [00:00<?, ?B/s]"
+            ],
+            "application/vnd.jupyter.widget-view+json": {
+              "version_major": 2,
+              "version_minor": 0,
+              "model_id": "d201973d25bb4535aadbce51a78d9b2c"
+            }
+          },
+          "metadata": {}
+        },
+        {
+          "output_type": "stream",
+          "name": "stderr",
+          "text": [
+            "Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.\n",
+            "WARNING:huggingface_hub.utils._http:Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.\n"
+          ]
+        },
+        {
+          "output_type": "display_data",
+          "data": {
+            "text/plain": [
+              "tokenizer.json:   0%|          | 0.00/1.39M [00:00<?, ?B/s]"
+            ],
+            "application/vnd.jupyter.widget-view+json": {
+              "version_major": 2,
+              "version_minor": 0,
+              "model_id": "65a275f6b46945b3b46aeffa38abb4a6"
+            }
+          },
+          "metadata": {}
+        },
+        {
+          "output_type": "display_data",
+          "data": {
+            "text/plain": [
+              "config.json:   0%|          | 0.00/1.21k [00:00<?, ?B/s]"
+            ],
+            "application/vnd.jupyter.widget-view+json": {
+              "version_major": 2,
+              "version_minor": 0,
+              "model_id": "a7e862f4c9ff445bb8eda92c22944834"
+            }
+          },
+          "metadata": {}
+        },
+        {
+          "output_type": "display_data",
+          "data": {
+            "text/plain": [
+              "model.safetensors:   0%|          | 0.00/892M [00:00<?, ?B/s]"
+            ],
+            "application/vnd.jupyter.widget-view+json": {
+              "version_major": 2,
+              "version_minor": 0,
+              "model_id": "3b23d8b1036e4e86a5044f7219857f3e"
+            }
+          },
+          "metadata": {}
+        },
+        {
+          "output_type": "display_data",
+          "data": {
+            "text/plain": [
+              "Loading weights:   0%|          | 0/257 [00:00<?, ?it/s]"
+            ],
+            "application/vnd.jupyter.widget-view+json": {
+              "version_major": 2,
+              "version_minor": 0,
+              "model_id": "4612d5dc44654fec9cc766ec8f75d3b4"
+            }
+          },
+          "metadata": {}
+        },
+        {
+          "output_type": "display_data",
+          "data": {
+            "text/plain": [
+              "generation_config.json:   0%|          | 0.00/147 [00:00<?, ?B/s]"
+            ],
+            "application/vnd.jupyter.widget-view+json": {
+              "version_major": 2,
+              "version_minor": 0,
+              "model_id": "7f318487c0f64d2084f5f1fc83274133"
+            }
+          },
+          "metadata": {}
+        },
+        {
+          "output_type": "display_data",
+          "data": {
+            "text/plain": [
+              "Map:   0%|          | 0/3000 [00:00<?, ? examples/s]"
+            ],
+            "application/vnd.jupyter.widget-view+json": {
+              "version_major": 2,
+              "version_minor": 0,
+              "model_id": "c26a4a970e76454d8bdaa158882a69f2"
+            }
+          },
+          "metadata": {}
+        },
+        {
+          "output_type": "display_data",
+          "data": {
+            "text/plain": [
+              "Map:   0%|          | 0/300 [00:00<?, ? examples/s]"
+            ],
+            "application/vnd.jupyter.widget-view+json": {
+              "version_major": 2,
+              "version_minor": 0,
+              "model_id": "5049dc35574e406aa790dfa7cbb9689c"
+            }
+          },
+          "metadata": {}
+        },
+        {
+          "output_type": "display_data",
+          "data": {
+            "text/plain": [
+              "Map:   0%|          | 0/300 [00:00<?, ? examples/s]"
+            ],
+            "application/vnd.jupyter.widget-view+json": {
+              "version_major": 2,
+              "version_minor": 0,
+              "model_id": "a8f015140d79487c9b684515c074a878"
+            }
+          },
+          "metadata": {}
+        },
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "✓ Train dataset tokenized: 3000 examples\n",
+            "✓ Validation dataset tokenized: 300 examples\n",
+            "✓ Test dataset tokenized: 300 examples\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "results_dir = \"/content/drive/MyDrive/results\"\n",
+        "model_dir = \"/content/drive/MyDrive/saved_t5_model\"\n",
+        "\n",
+        "os.makedirs(results_dir, exist_ok=True)\n",
+        "os.makedirs(model_dir, exist_ok=True)"
+      ],
+      "metadata": {
+        "id": "3e5nm6cJCJ1B"
+      },
+      "execution_count": 11,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# Define training arguments with smaller batch size\n",
+        "training_args = TrainingArguments(\n",
+        "    output_dir=results_dir,\n",
+        "    eval_strategy=\"epoch\",\n",
+        "    save_strategy=\"epoch\",\n",
+        "    logging_steps=100,\n",
+        "    learning_rate=3e-5,\n",
+        "    per_device_train_batch_size=4,\n",
+        "    per_device_eval_batch_size=4,\n",
+        "    gradient_accumulation_steps=2,\n",
+        "    num_train_epochs=5,\n",
+        "    weight_decay=0.01,\n",
+        "    fp16=True,\n",
+        "    report_to=\"none\",\n",
+        "    load_best_model_at_end=True,\n",
+        "    metric_for_best_model=\"eval_loss\",\n",
+        "    save_total_limit=2,\n",
+        ")\n",
+        "\n",
+        "# Initialize Trainer\n",
+        "trainer = Trainer(\n",
+        "    model=model,\n",
+        "    args=training_args,\n",
+        "    train_dataset=train_dataset,\n",
+        "    eval_dataset=validation_dataset,\n",
+        ")\n",
+        "\n",
+        "# Train the model\n",
+        "trainer.train()\n",
+        "\n",
+        "# SAVE MODEL\n",
+        "trainer.save_model(model_dir)\n",
+        "tokenizer.save_pretrained(model_dir)\n",
+        "print(f\"✅ Model saved to: {model_dir}\")"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 459,
+          "referenced_widgets": [
+            "42edced3926c4f568d87c9a20852c1e4",
+            "d8649810cabd419f95173186bf99264b",
+            "cfbbea5f1c0f43f48b491eea4fa1de6b",
+            "b6383d7eb8234036b854494a22c43312",
+            "feb916e040cc40e59fae0a4a4eef3dd1",
+            "2c6a2d0fcad0422498476b8f7ae600e8",
+            "22ff135263c447458831f929f1d6c569",
+            "abb53a1d61fa40c0938f14a444ec100e",
+            "f1e6cc58521d4b1b83e0c5b1d9874580",
+            "9b9aa1484f154ed0a060d6599b9fc20b",
+            "b5ab1e97d3564e2fbfab82af8c7a5ada",
+            "3412ec1a12a34659919d1fd2b721e326",
+            "9795bb9f44954145a81c7b328cd6c4f8",
+            "950ded9526af41938b652c1aca0ca35b",
+            "d84ea299581244ba8ae86049e247c059",
+            "5c05a9ec684144c687e9906cd3ce9c6b",
+            "f06a6b14c110461aa61afea558c53514",
+            "2a2f5adc7830410e814a3f09a35e2329",
+            "20176c3817b34977adbc752610276cb2",
+            "fae4f371702f4603bc22cbef9255259e",
+            "bc73835e6c7d44aeb751fb4a965ff942",
+            "93af7a22b2984baca9212f1e422bc9d1",
+            "dd09c41852f3436cbd5128eb558b117c",
+            "235d83814a0344169d932ae43b577335",
+            "aa915aab1c3a4ac4b7e52914a8221c87",
+            "36a9ce7c83e14883a18a6f725cac4ac7",
+            "3b29d7c1cb6a4475aa60dbbb0a508701",
+            "93fe709ce7954fe3823f7dbd394c0774",
+            "2ffd45200fe142a6ab71dbdb52c0279d",
+            "2ad77612d6884895be6394007f6b7f03",
+            "fc3b13c45f724a4f8230678983a68191",
+            "1309376d9da64ed5a8a2e22baf2b8e23",
+            "8f62588a421246eea039a1866bf3b6d9",
+            "efa0b7e4a16b4ac1a2d597fa5e527f10",
+            "540784729247463394ed98c719a2f5f8",
+            "1e19a7724859468ab9243d75adc960cb",
+            "3084ead4d67c4fd9824faafd23d18fa8",
+            "32ddd0dfc5ac49cdbb518ff2eb76c289",
+            "f857ba45b8b14e32a865c8752fb7c05e",
+            "21595ee1e71c4ed1b9b6c65ef70f6ccf",
+            "bc71ab18bba84467ae5b08173f36d5cd",
+            "f4f08d9ac5d146dfafcf968e2f07484b",
+            "b18b85be7f204cf4a9d41eb9ff208202",
+            "eb6d6af1007e407ab6d423a0a1552669",
+            "61b9de2fa5a04837b39803f987f2b5c5",
+            "3192017e73504acd973c156dc5e4da5f",
+            "cb95b670ba2447e1a9bbcb9471fd3e23",
+            "4bd56a6cf5bf4220942207a9bfe6e6b3",
+            "eda7f347e4164efb9adfcf6ceafa3bcf",
+            "2692ef5ce4204471ae2983d2dba40c06",
+            "a13a3d23bf904883a4104f2df90c56d4",
+            "a43e017f4030412baa1545eb0c70d09d",
+            "25df795ced6e455091ccb414fdf24b77",
+            "05a950c785b245298d9b8b426d05d4f0",
+            "7dece80f88b54a77b79aa73155adb999",
+            "3fba13fb383c46f8a7beeb78fb6fe417",
+            "837d5639bf93438a9c258bab2caf17cf",
+            "6c433944238f401ead289b98a826840b",
+            "ad347e18a1714d6ab19a6720105ca62d",
+            "8d4737729a014305881a1052eacf11a2",
+            "fc64190a3d9b4a1a95a7788fa5fd194e",
+            "0a5c176a9d9d40c2ac58b4498969a7a1",
+            "ed04edd7231e4f8ea4f35e4d8fe4d3b6",
+            "cc8d435a344447de90de07a75f0e2b11",
+            "9c5695add89248e0892117ac4759e66d",
+            "366aaf80e82a42d58b96970dd2bd72f8"
+          ]
+        },
+        "id": "IEYEKaWACOS_",
+        "outputId": "cdd2d8bf-a5a6-4ef7-9dda-411045b884b8"
+      },
+      "execution_count": 12,
+      "outputs": [
+        {
+          "output_type": "display_data",
+          "data": {
+            "text/plain": [
+              "<IPython.core.display.HTML object>"
+            ],
+            "text/html": [
+              "\n",
+              "    <div>\n",
+              "      \n",
+              "      <progress value='1875' max='1875' style='width:300px; height:20px; vertical-align: middle;'></progress>\n",
+              "      [1875/1875 40:23, Epoch 5/5]\n",
+              "    </div>\n",
+              "    <table border=\"1\" class=\"dataframe\">\n",
+              "  <thead>\n",
+              " <tr style=\"text-align: left;\">\n",
+              "      <th>Epoch</th>\n",
+              "      <th>Training Loss</th>\n",
+              "      <th>Validation Loss</th>\n",
+              "    </tr>\n",
+              "  </thead>\n",
+              "  <tbody>\n",
+              "    <tr>\n",
+              "      <td>1</td>\n",
+              "      <td>0.087188</td>\n",
+              "      <td>0.035986</td>\n",
+              "    </tr>\n",
+              "    <tr>\n",
+              "      <td>2</td>\n",
+              "      <td>0.073044</td>\n",
+              "      <td>0.033312</td>\n",
+              "    </tr>\n",
+              "    <tr>\n",
+              "      <td>3</td>\n",
+              "      <td>0.063684</td>\n",
+              "      <td>0.032419</td>\n",
+              "    </tr>\n",
+              "    <tr>\n",
+              "      <td>4</td>\n",
+              "      <td>0.061094</td>\n",
+              "      <td>0.032006</td>\n",
+              "    </tr>\n",
+              "    <tr>\n",
+              "      <td>5</td>\n",
+              "      <td>0.059697</td>\n",
+              "      <td>0.031844</td>\n",
+              "    </tr>\n",
+              "  </tbody>\n",
+              "</table><p>"
+            ]
+          },
+          "metadata": {}
+        },
+        {
+          "output_type": "display_data",
+          "data": {
+            "text/plain": [
+              "Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]"
+            ],
+            "application/vnd.jupyter.widget-view+json": {
+              "version_major": 2,
+              "version_minor": 0,
+              "model_id": "42edced3926c4f568d87c9a20852c1e4"
+            }
+          },
+          "metadata": {}
+        },
+        {
+          "output_type": "display_data",
+          "data": {
+            "text/plain": [
+              "Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]"
+            ],
+            "application/vnd.jupyter.widget-view+json": {
+              "version_major": 2,
+              "version_minor": 0,
+              "model_id": "3412ec1a12a34659919d1fd2b721e326"
+            }
+          },
+          "metadata": {}
+        },
+        {
+          "output_type": "display_data",
+          "data": {
+            "text/plain": [
+              "Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]"
+            ],
+            "application/vnd.jupyter.widget-view+json": {
+              "version_major": 2,
+              "version_minor": 0,
+              "model_id": "dd09c41852f3436cbd5128eb558b117c"
+            }
+          },
+          "metadata": {}
+        },
+        {
+          "output_type": "display_data",
+          "data": {
+            "text/plain": [
+              "Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]"
+            ],
+            "application/vnd.jupyter.widget-view+json": {
+              "version_major": 2,
+              "version_minor": 0,
+              "model_id": "efa0b7e4a16b4ac1a2d597fa5e527f10"
+            }
+          },
+          "metadata": {}
+        },
+        {
+          "output_type": "display_data",
+          "data": {
+            "text/plain": [
+              "Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]"
+            ],
+            "application/vnd.jupyter.widget-view+json": {
+              "version_major": 2,
+              "version_minor": 0,
+              "model_id": "61b9de2fa5a04837b39803f987f2b5c5"
+            }
+          },
+          "metadata": {}
+        },
+        {
+          "output_type": "stream",
+          "name": "stderr",
+          "text": [
+            "There were missing keys in the checkpoint model loaded: ['encoder.embed_tokens.weight', 'decoder.embed_tokens.weight', 'lm_head.weight'].\n"
+          ]
+        },
+        {
+          "output_type": "display_data",
+          "data": {
+            "text/plain": [
+              "Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]"
+            ],
+            "application/vnd.jupyter.widget-view+json": {
+              "version_major": 2,
+              "version_minor": 0,
+              "model_id": "3fba13fb383c46f8a7beeb78fb6fe417"
+            }
+          },
+          "metadata": {}
+        },
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "✅ Model saved to: /content/drive/MyDrive/saved_t5_model\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "import torch\n",
+        "from transformers import T5ForConditionalGeneration, T5Tokenizer\n",
+        "\n",
+        "model_dir = \"/content/drive/MyDrive/saved_t5_model\"\n",
+        "\n",
+        "model = T5ForConditionalGeneration.from_pretrained(model_dir)\n",
+        "tokenizer = T5Tokenizer.from_pretrained(model_dir)\n",
+        "\n",
+        "device = torch.device(\"cuda\" if torch.cuda.is_available() else \"cpu\")\n",
+        "model = model.to(device)\n",
+        "\n",
+        "print(\"✅ Model loaded successfully!\")"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 66,
+          "referenced_widgets": [
+            "fe29c8b37c85409eb7f784d593f59a15",
+            "2ea543a679d9424a900bf7a80f84a62c",
+            "ef6d868e60ed4ad19c7d9e97b73233db",
+            "494c6a8dacc04619aaf8707da3105a5c",
+            "f91a8c6861bb474fb8119f4d2d0ba4c6",
+            "048f072de592450ba080d34b11ed7066",
+            "a91fb76246064dbebf83c3ddd86a1f84",
+            "d17dbc37d17d4cf8be73d3a66f7f3dbc",
+            "bdcb7b7ebe74488b82842e2d911934fc",
+            "7f28004361544e31a1cac206a25526e1",
+            "42b7e29ea46649129dc454c1d4a4f01c"
+          ]
+        },
+        "id": "jIRby3IvnOY3",
+        "outputId": "51fa9c39-7dfe-44c9-953a-b166ef28eadb"
+      },
+      "execution_count": 13,
+      "outputs": [
+        {
+          "output_type": "display_data",
+          "data": {
+            "text/plain": [
+              "Loading weights:   0%|          | 0/257 [00:00<?, ?it/s]"
+            ],
+            "application/vnd.jupyter.widget-view+json": {
+              "version_major": 2,
+              "version_minor": 0,
+              "model_id": "fe29c8b37c85409eb7f784d593f59a15"
+            }
+          },
+          "metadata": {}
+        },
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "✅ Model loaded successfully!\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "import os\n",
+        "from transformers import T5ForConditionalGeneration, T5Tokenizer\n",
+        "\n",
+        "# Load the model and tokenizer from the saved directory\n",
+        "model = T5ForConditionalGeneration.from_pretrained(model_dir)\n",
+        "tokenizer = T5Tokenizer.from_pretrained(model_dir)"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 49,
+          "referenced_widgets": [
+            "8d20b4910e5d4e9f9447f59676b3cac1",
+            "4dae67afc6df48efb50b078a4a599644",
+            "c8260f59880d406cacb1f08ed8e06027",
+            "ffe846298ff74af8868baeab95de425d",
+            "fe1ff0442ae2449a9cc2260758d17945",
+            "0f6692523c184af78d0b2c9606ea3a1e",
+            "b7d3c08ba6e140bd831d4fa093f649ac",
+            "46304c725d2549348ebc101caead3443",
+            "cc70d5e28f434c12ae71a5def052c299",
+            "8779897e0a59469bb3b4ef34b7a9825e",
+            "a0e9647c6ba24a40827a1cde973ff7a4"
+          ]
+        },
+        "id": "CKyBuk6GCypW",
+        "outputId": "3d515c3a-0745-4f26-b47c-8673ea1a0b90"
+      },
+      "execution_count": 12,
+      "outputs": [
+        {
+          "output_type": "display_data",
+          "data": {
+            "text/plain": [
+              "Loading weights:   0%|          | 0/257 [00:00<?, ?it/s]"
+            ],
+            "application/vnd.jupyter.widget-view+json": {
+              "version_major": 2,
+              "version_minor": 0,
+              "model_id": "8d20b4910e5d4e9f9447f59676b3cac1"
+            }
+          },
+          "metadata": {}
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# Define model_dir\n",
+        "model_dir = \"/content/drive/MyDrive/saved_t5_model\""
+      ],
+      "metadata": {
+        "id": "qw9CGu-bcojE"
+      },
+      "execution_count": 4,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "import torch\n",
+        "from transformers import T5ForConditionalGeneration, T5Tokenizer\n",
+        "\n",
+        "# Load the model and tokenizer from the saved directory\n",
+        "model = T5ForConditionalGeneration.from_pretrained(model_dir)\n",
+        "tokenizer = T5Tokenizer.from_pretrained(model_dir)\n",
+        "\n",
+        "# Set the device (GPU if available, otherwise CPU)\n",
+        "device = torch.device(\"cuda\" if torch.cuda.is_available() else \"cpu\")\n",
+        "model = model.to(device)\n",
+        "\n",
+        "# Define max_length\n",
+        "max_length = 512  # Same as training\n",
+        "\n",
+        "# Preprocessing function for inference\n",
+        "def preprocess_input(sentence):\n",
+        "    return \"paraphrase: \" + sentence\n",
+        "\n",
+        "# Generate paraphrases with corrected num_beams and num_return_sequences\n",
+        "def generate_paraphrase(input_text, model, tokenizer, max_length=512, num_beams=5, num_return_sequences=4, top_k=100, top_p=0.9, temperature=1.0):\n",
+        "    # Preprocess input\n",
+        "    input_text = preprocess_input(input_text)\n",
+        "\n",
+        "    # Tokenize input\n",
+        "    inputs = tokenizer(input_text, return_tensors=\"pt\", truncation=True, max_length=max_length, padding=\"max_length\")\n",
+        "\n",
+        "    # Move inputs to the same device as the model\n",
+        "    inputs = {key: value.to(device) for key, value in inputs.items()}\n",
+        "\n",
+        "    # Generate paraphrases\n",
+        "    outputs = model.generate(\n",
+        "        input_ids=inputs[\"input_ids\"],\n",
+        "        attention_mask=inputs[\"attention_mask\"],\n",
+        "        max_length=max_length + 20,\n",
+        "        num_beams=num_beams,\n",
+        "        num_return_sequences=num_return_sequences,\n",
+        "        top_k=top_k,\n",
+        "        top_p=top_p,\n",
+        "        temperature=temperature,\n",
+        "        do_sample=True,\n",
+        "        early_stopping=True\n",
+        "    )\n",
+        "\n",
+        "    # Decode generated outputs\n",
+        "    paraphrased_texts = [tokenizer.decode(output, skip_special_tokens=True) for output in outputs]\n",
+        "    return paraphrased_texts\n",
+        "\n",
+        "# Example sentence\n",
+        "input_sentence = \"The quick brown fox jumps over the lazy dog.\"\n",
+        "\n",
+        "# Generate paraphrases\n",
+        "paraphrased_sentences = generate_paraphrase(\n",
+        "    input_sentence, model, tokenizer, max_length=512, num_return_sequences=4\n",
+        ")\n",
+        "\n",
+        "# Display results\n",
+        "print(f\"Original: {input_sentence}\")\n",
+        "for i, paraphrase in enumerate(paraphrased_sentences, 1):\n",
+        "    print(f\"Paraphrase {i}: {paraphrase}\")"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 136,
+          "referenced_widgets": [
+            "bc734e4736f347a2ba0b2061c5df3e69",
+            "4827915cadc744e29d6541f9ade652b7",
+            "139040c7647f475486fa0dc4aac3c403",
+            "299122e3319046e78fd61be5e2e5e92f",
+            "43871cc8e95845aa855be263c881a01a",
+            "e874e6c4664e4ea385af71ffb738b77d",
+            "dbb785b309d44f9ca802f366a784812f",
+            "b72658dd74af4e129a02217af79a60b6",
+            "5fe725465fd94ee3ae98e0faa3e71d03",
+            "0d45c2c5a27d457d9cc18b6658da656f",
+            "6699d41abc0b4afd98a191db67264004"
+          ]
+        },
+        "id": "6TyhuX10C31q",
+        "outputId": "b09724aa-d8e2-4099-bfab-d8ad8a133b9d"
+      },
+      "execution_count": 14,
+      "outputs": [
+        {
+          "output_type": "display_data",
+          "data": {
+            "text/plain": [
+              "Loading weights:   0%|          | 0/257 [00:00<?, ?it/s]"
+            ],
+            "application/vnd.jupyter.widget-view+json": {
+              "version_major": 2,
+              "version_minor": 0,
+              "model_id": "bc734e4736f347a2ba0b2061c5df3e69"
+            }
+          },
+          "metadata": {}
+        },
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Original: The quick brown fox jumps over the lazy dog.\n",
+            "Paraphrase 1: The quick brown fox jumps over the lazy dog.\n",
+            "Paraphrase 2: The quick brown fox jumps over the lazy dog .\n",
+            "Paraphrase 3: The fast brown fox jumps over the lazy dog.\n",
+            "Paraphrase 4: The quick brown fox leaps over the lazy dog.\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "input_sentence = \"She enjoys reading books on rainy afternoons.\"\n",
+        "\n",
+        "paraphrased_sentences = generate_paraphrase(\n",
+        "    input_sentence, model, tokenizer, num_return_sequences=4\n",
+        ")\n",
+        "\n",
+        "print(f\"Original: {input_sentence}\")\n",
+        "for i, paraphrase in enumerate(paraphrased_sentences, 1):\n",
+        "    print(f\"Paraphrase {i}: {paraphrase}\")"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "tO2wC3BoC60M",
+        "outputId": "2780abf7-f895-435b-d544-6f5468c149e8"
+      },
+      "execution_count": 15,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Original: She enjoys reading books on rainy afternoons.\n",
+            "Paraphrase 1: She enjoys reading books on rainy afternoons.\n",
+            "Paraphrase 2: She enjoys reading books on rainy afternoons .\n",
+            "Paraphrase 3: On rainy afternoons, she enjoys reading books.\n",
+            "Paraphrase 4: She loves reading books on rainy afternoons.\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "input_sentence = \"The dog barked loudly at the stranger outside the house.\"\n",
+        "\n",
+        "paraphrased_sentences = generate_paraphrase(\n",
+        "    input_sentence, model, tokenizer, num_return_sequences=4\n",
+        ")\n",
+        "\n",
+        "print(f\"Original: {input_sentence}\")\n",
+        "for i, paraphrase in enumerate(paraphrased_sentences, 1):\n",
+        "    print(f\"Paraphrase {i}: {paraphrase}\")"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "b6ien9CTC810",
+        "outputId": "3e1118ad-8366-4261-b9a5-4312570500dd"
+      },
+      "execution_count": 16,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Original: The dog barked loudly at the stranger outside the house.\n",
+            "Paraphrase 1: The dog barked loudly at the stranger outside the house.\n",
+            "Paraphrase 2: The dog barked loudly at the stranger outside the house .\n",
+            "Paraphrase 3: The dog barked loudly at a stranger outside the house.\n",
+            "Paraphrase 4: The dog loudly barked at the stranger outside the house.\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "input_sentence = \"Climate change is one of the most pressing issues of our time.\"\n",
+        "\n",
+        "paraphrased_sentences = generate_paraphrase(\n",
+        "    input_sentence, model, tokenizer, num_return_sequences=4\n",
+        ")\n",
+        "\n",
+        "print(f\"Original: {input_sentence}\")\n",
+        "for i, paraphrase in enumerate(paraphrased_sentences, 1):\n",
+        "    print(f\"Paraphrase {i}: {paraphrase}\")"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "Dzlsu_S2C_8i",
+        "outputId": "a20f9acd-ed5e-4d55-afb8-d902e1093869"
+      },
+      "execution_count": 17,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Original: Climate change is one of the most pressing issues of our time.\n",
+            "Paraphrase 1: Climate change is one of the most pressing issues of our time.\n",
+            "Paraphrase 2: Climate change is one of the most pressing issues of our time .\n",
+            "Paraphrase 3: The climate change is one of the most pressing issues of our time.\n",
+            "Paraphrase 4: Climate Change is one of the most pressing issues of our time.\n"
+          ]
+        }
+      ]
+    }
+  ]
+}
